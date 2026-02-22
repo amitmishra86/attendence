@@ -345,7 +345,7 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
 <script>
 
 // ─── PASSWORD CONFIG — Change this to your own password! ─────────────────────
-const CORRECT_PASSWORD = 'Attendr@2026';  // ← CHANGE THIS TO YOUR OWN PASSWORD
+const CORRECT_PASSWORD = 'Amit@2026';  // ← CHANGE THIS TO YOUR OWN PASSWORD
 const MAX_ATTEMPTS     = 5;
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -416,6 +416,8 @@ document.addEventListener('DOMContentLoaded', function() {
   // ── Date header ──
   document.getElementById('header-date').textContent =
     new Date().toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+}); // end DOMContentLoaded
 
 // ─── Upload handling ──────────────────────────────────────────────────────────
 const dropZone  = document.getElementById('drop-zone');
@@ -961,7 +963,6 @@ function reupload() {
   document.getElementById('file-badge').style.display = 'none';
   fileInput.value = '';
 }
-}); // end DOMContentLoaded
 </script>
 </body>
 </html>
