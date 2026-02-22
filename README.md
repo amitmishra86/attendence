@@ -6,7 +6,7 @@
 
 ## 🌐 Live Demo
 
-👉 **[View Dashboard](https://YOUR-USERNAME.github.io/attendr)**
+👉 **[View Dashboard] https://amitmishra86.github.io/attendence/**
 
 > Replace the link above with your actual GitHub Pages URL after deployment.
 
