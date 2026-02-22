@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ATTENDR — Attendance Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:       #080810;
+  --bg2:      #0e0e1c;
+  --bg3:      #141428;
+  --border:   #1e1e3a;
+  --border2:  #2a2a50;
+  --text:     #e8e8f5;
+  --muted:    #5a5a8a;
+  --accent:   #7c6aff;
+  --accent2:  #ff6ab0;
+  --green:    #2eff9e;
+  --red:      #ff4f6a;
+  --yellow:   #ffd93d;
+  --blue:     #4fc3f7;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--accent);border-radius:2px}
+
+/* ── Background grid ── */
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:.3;pointer-events:none;z-index:0}
+
+/* ── Header ── */
+header{position:relative;z-index:10;border-bottom:1px solid var(--border2);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:64px;background:linear-gradient(180deg,#0a0a1800,transparent)}
+.logo{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;letter-spacing:.15em;color:var(--accent)}
+.logo span{color:var(--accent2)}
+.header-meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.1em}
+.file-badge{background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:4px 14px;font-size:11px;color:var(--accent);font-family:'Space Mono',monospace}
+
+/* ── Password Screen ── */
+#password-screen{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+#password-screen.hidden{display:none}
+.lock-card{background:var(--bg2);border:1px solid var(--border2);border-radius:24px;padding:52px 48px;max-width:420px;width:100%;text-align:center;position:relative;overflow:hidden}
+.lock-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#7c6aff14,transparent 65%);pointer-events:none}
+.lock-icon{font-size:48px;margin-bottom:20px;display:block;filter:drop-shadow(0 0 24px #7c6aff55)}
+.lock-title{font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.lock-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
+.lock-input-wrap{position:relative;margin-bottom:14px}
+.lock-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:12px;padding:13px 48px 13px 16px;font-size:14px;font-family:'Space Mono',monospace;letter-spacing:.1em;transition:border-color .2s}
+.lock-input:focus{outline:none;border-color:var(--accent)}
+.lock-input.error{border-color:var(--red);animation:shake .3s ease}
+.toggle-pw{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:4px}
+.lock-btn{width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;border-radius:12px;padding:13px;font-size:14px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:opacity .2s;margin-bottom:16px}
+.lock-btn:hover{opacity:.85}
+.lock-error{font-size:12px;color:var(--red);font-family:'Space Mono',monospace;min-height:18px;transition:opacity .2s}
+.lock-hint{font-size:11px;color:var(--border2);margin-top:20px;font-family:'Space Mono',monospace}
+.lock-attempts{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:8px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+
+/* ── Upload Zone ── */
+#upload-zone{position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 64px);padding:40px 24px;transition:all .3s}
+#upload-zone.hidden{display:none}
+.upload-card{background:var(--bg2);border:2px dashed var(--border2);border-radius:24px;padding:64px 80px;text-align:center;max-width:560px;width:100%;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.upload-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#7c6aff11,transparent 70%);pointer-events:none}
+.upload-card:hover,.upload-card.drag-over{border-color:var(--accent);background:#0e0e20;transform:translateY(-4px);box-shadow:0 20px 60px #7c6aff22}
+.upload-icon{font-size:56px;margin-bottom:24px;display:block;filter:drop-shadow(0 0 20px #7c6aff44)}
+.upload-title{font-size:24px;font-weight:800;margin-bottom:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.upload-sub{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:28px}
+.upload-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;border-radius:12px;padding:12px 32px;font-size:14px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:opacity .2s}
+.upload-btn:hover{opacity:.85}
+.upload-note{margin-top:20px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace}
+#file-input{display:none}
+
+/* ── Dashboard ── */
+#dashboard{position:relative;z-index:10;padding:28px 32px;display:none}
+#dashboard.visible{display:block}
+
+/* Top bar */
+.dash-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:12px}
+.dash-title{font-size:22px;font-weight:800;color:var(--text)}
+.dash-title span{color:var(--accent)}
+.topbar-actions{display:flex;gap:10px;align-items:center}
+.btn-reupload{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:10px;padding:8px 16px;font-size:12px;font-family:'Syne',sans-serif;cursor:pointer;transition:all .2s}
+.btn-reupload:hover{border-color:var(--accent);color:var(--accent)}
+.week-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.week-tab{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:6px 14px;font-size:11px;font-family:'Space Mono',monospace;cursor:pointer;transition:all .2s;white-space:nowrap}
+.week-tab.active{background:#7c6aff22;border-color:var(--accent);color:var(--accent)}
+
+/* ── KPI Cards ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px}
+.kpi-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 18px;position:relative;overflow:hidden;transition:transform .2s}
+.kpi-card:hover{transform:translateY(-2px)}
+.kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi-card.green::after{background:linear-gradient(90deg,var(--green),transparent)}
+.kpi-card.red::after{background:linear-gradient(90deg,var(--red),transparent)}
+.kpi-card.yellow::after{background:linear-gradient(90deg,var(--yellow),transparent)}
+.kpi-card.blue::after{background:linear-gradient(90deg,var(--blue),transparent)}
+.kpi-card.purple::after{background:linear-gradient(90deg,var(--accent),transparent)}
+.kpi-val{font-family:'Space Mono',monospace;font-size:32px;font-weight:700;line-height:1;margin-bottom:6px}
+.kpi-card.green .kpi-val{color:var(--green)}
+.kpi-card.red .kpi-val{color:var(--red)}
+.kpi-card.yellow .kpi-val{color:var(--yellow)}
+.kpi-card.blue .kpi-val{color:var(--blue)}
+.kpi-card.purple .kpi-val{color:var(--accent)}
+.kpi-label{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace}
+
+/* ── Section layout ── */
+.section-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+.section-full{margin-bottom:18px}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.panel-head{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.panel-title span{color:var(--accent);margin-left:8px}
+.panel-body{padding:16px 20px}
+
+/* ── Alert rows ── */
+.alert-list{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto}
+.alert-row{display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:10px;padding:10px 14px;border-left:3px solid}
+.alert-row.red{border-color:var(--red)}
+.alert-row.yellow{border-color:var(--yellow)}
+.alert-row.blue{border-color:var(--blue)}
+.alert-name{font-size:13px;font-weight:600;color:var(--text)}
+.alert-team{font-size:11px;color:var(--muted);margin-top:2px}
+.alert-badge{font-family:'Space Mono',monospace;font-size:11px;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.badge-red{background:#ff4f6a22;color:var(--red);border:1px solid #ff4f6a33}
+.badge-yellow{background:#ffd93d22;color:var(--yellow);border:1px solid #ffd93d33}
+.badge-blue{background:#4fc3f722;color:var(--blue);border:1px solid #4fc3f733}
+.badge-green{background:#2eff9e22;color:var(--green);border:1px solid #2eff9e33}
+.badge-purple{background:#7c6aff22;color:var(--accent);border:1px solid #7c6aff33}
+
+/* ── Team summary ── */
+.team-bars{display:flex;flex-direction:column;gap:10px}
+.team-bar-row{display:flex;align-items:center;gap:12px}
+.team-bar-label{font-size:12px;color:var(--text);min-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team-bar-track{flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden}
+.team-bar-fill{height:100%;border-radius:4px;transition:width .6s ease;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.team-bar-pct{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);min-width:36px;text-align:right}
+
+/* ── Full table ── */
+.full-table-wrap{overflow-x:auto;max-height:500px;overflow-y:auto}
+.full-table{width:100%;border-collapse:collapse;font-size:12px;min-width:700px}
+.full-table thead{position:sticky;top:0;z-index:5}
+.full-table th{background:#0e0e1c;padding:10px 12px;text-align:left;font-size:10px;letter-spacing:.1em;color:var(--muted);font-weight:600;border-bottom:1px solid var(--border2);white-space:nowrap}
+.full-table th.center{text-align:center}
+.full-table td{padding:9px 12px;border-bottom:1px solid #0e0e1c11;vertical-align:middle}
+.full-table tr:hover td{background:#ffffff05}
+.cell-yes{color:var(--green);font-weight:700;text-align:center}
+.cell-wfh{color:var(--yellow);font-weight:700;text-align:center}
+.cell-leave{color:var(--blue);font-weight:700;text-align:center}
+.cell-blank{color:var(--border2);text-align:center}
+.cell-pending{color:var(--red);font-weight:700;font-family:'Space Mono',monospace;text-align:center}
+.cell-ok{color:var(--green);font-family:'Space Mono',monospace;text-align:center}
+.name-cell{font-weight:600;color:var(--text)}
+.team-cell{font-size:11px;color:var(--muted)}
+.pct-cell{font-family:'Space Mono',monospace;text-align:center}
+
+/* ── Month view tabs ── */
+.view-toggle{display:flex;gap:6px;margin-bottom:20px}
+.view-btn{background:var(--bg3);border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:7px 18px;font-size:12px;font-family:'Syne',sans-serif;font-weight:600;cursor:pointer;transition:all .2s}
+.view-btn.active{background:#7c6aff22;border-color:var(--accent);color:var(--accent)}
+
+/* ── Empty state ── */
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+
+/* ── Animations ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.animate{animation:fadeUp .4s ease forwards;opacity:0}
+.animate:nth-child(1){animation-delay:.05s}
+.animate:nth-child(2){animation-delay:.1s}
+.animate:nth-child(3){animation-delay:.15s}
+.animate:nth-child(4){animation-delay:.2s}
+.animate:nth-child(5){animation-delay:.25s}
+
+@media(max-width:900px){
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .section-grid{grid-template-columns:1fr}
+  #dashboard{padding:16px}
+}
+
+/* ── Quick Export Buttons ── */
+.qbtn{display:flex;flex-direction:column;align-items:flex-start;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:14px 18px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;min-width:200px;flex:1}
+.qbtn span{font-size:11px;font-weight:400;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace;text-align:left}
+.qbtn:hover{transform:translateY(-2px);box-shadow:0 8px 24px #00000033}
+.qbtn-yellow{color:var(--yellow);border-color:#ffd93d33}.qbtn-yellow:hover{border-color:var(--yellow);background:#ffd93d0a}
+.qbtn-blue{color:var(--blue);border-color:#4fc3f733}.qbtn-blue:hover{border-color:var(--blue);background:#4fc3f70a}
+.qbtn-purple{color:var(--accent);border-color:#7c6aff33}.qbtn-purple:hover{border-color:var(--accent);background:#7c6aff0a}
+.qbtn-green{color:var(--green);border-color:#2eff9e33}.qbtn-green:hover{border-color:var(--green);background:#2eff9e0a}
+</style>
+</head>
+<body>
+
+<!-- Password Screen -->
+<div id="password-screen">
+  <div class="lock-card">
+    <span class="lock-icon">🔐</span>
+    <div class="lock-title">ATTENDR Access</div>
+    <div class="lock-sub">This dashboard is private.<br>Enter the password to continue.</div>
+    <div class="lock-input-wrap">
+      <input class="lock-input" type="password" id="pw-input" placeholder="Enter password" maxlength="32" />
+      <button class="toggle-pw" id="toggle-pw-btn" title="Show/hide password">👁</button>
+    </div>
+    <div class="lock-error" id="pw-error">&nbsp;</div>
+    <button class="lock-btn" id="unlock-btn">UNLOCK DASHBOARD →</button>
+    <div class="lock-attempts" id="pw-attempts"></div>
+    <div class="lock-hint">Contact your manager if you don't have the password.</div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">ATTEND<span>R</span></div>
+  <span id="file-badge" class="file-badge" style="display:none"></span>
+  <span class="header-meta" id="header-date"></span>
+</header>
+
+<!-- Upload Zone -->
+<div id="upload-zone">
+  <div class="upload-card" id="drop-zone">
+    <span class="upload-icon">📊</span>
+    <div class="upload-title">Drop your Excel file here</div>
+    <div class="upload-sub">
+      Download your attendance Excel from SharePoint every Friday<br>
+      and drop it here to instantly generate your dashboard.<br><br>
+      Supports your exact column format — <strong style="color:var(--accent)">Employee, Team, dates with Yes/WFH/Leave</strong>
+    </div>
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+      📂 Choose Excel File
+    </button>
+    <div class="upload-note">Supports .xlsx and .xls — processed entirely in your browser</div>
+  </div>
+  <input type="file" id="file-input" accept=".xlsx,.xls" />
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+
+  <!-- Top bar -->
+  <div class="dash-topbar">
+    <div>
+      <div class="dash-title">Attendance <span>Dashboard</span></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;font-family:'Space Mono',monospace" id="dash-subtitle"></div>
+    </div>
+    <div class="topbar-actions">
+      <div class="view-toggle">
+        <button class="view-btn active" id="btn-week" onclick="switchView('week')">📅 Week View</button>
+        <button class="view-btn" id="btn-month" onclick="switchView('month')">📆 Month View</button>
+      </div>
+      <button class="btn-reupload" onclick="reupload()">↑ Upload New File</button>
+    </div>
+  </div>
+
+  <!-- Week selector (week view) -->
+  <div id="week-selector" style="margin-bottom:20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-right:4px">WEEK:</span>
+    <div id="week-tabs" class="week-tabs"></div>
+  </div>
+
+  <!-- KPI Row -->
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <!-- Alerts + Team summary -->
+  <div class="section-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">⚠ Pending WFH Coverage <span id="pending-count"></span></span>
+      </div>
+      <div class="panel-body">
+        <div class="alert-list" id="pending-list"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">🏢 Team Office Attendance %</span>
+      </div>
+      <div class="panel-body">
+        <div class="team-bars" id="team-bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Zero office days -->
+  <div class="section-grid">
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">🚨 Zero Office Days <span id="zero-count"></span></span>
+      </div>
+      <div class="panel-body">
+        <div class="alert-list" id="zero-list"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">🏖 Leave Summary <span id="leave-sum-count"></span></span>
+      </div>
+      <div class="panel-body">
+        <div class="alert-list" id="leave-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Exports -->
+  <div class="panel section-full" style="margin-bottom:18px">
+    <div class="panel-head">
+      <span class="panel-title">⬇ Quick Reports — Download Specific Data</span>
+    </div>
+    <div class="panel-body">
+      <div style="display:flex;flex-wrap:wrap;gap:12px">
+        <button onclick="exportPendingWFH()" class="qbtn qbtn-yellow">
+          ⚠ Pending WFH List
+          <span>Employees who haven't covered WFH days</span>
+        </button>
+        <button onclick="exportMondayTuesdayLeaves()" class="qbtn qbtn-blue">
+          🏖 Mon/Tue Leave Report
+          <span>Who took leaves on mandatory days</span>
+        </button>
+        <button onclick="exportWFHSummary()" class="qbtn qbtn-purple">
+          🏠 Full WFH Summary
+          <span>All WFH days + pending count per employee</span>
+        </button>
+        <button onclick="exportCurrentView()" class="qbtn qbtn-green">
+          📋 Full Attendance Export
+          <span>Complete week/month data as Excel</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full table -->
+  <div class="panel section-full">
+    <div class="panel-head">
+      <span class="panel-title">📋 Full Attendance Detail <span id="table-week-label"></span></span>
+      <button onclick="exportCurrentView()" style="background:var(--bg3);border:1px solid var(--border2);color:var(--accent);border-radius:8px;padding:5px 14px;font-size:11px;font-family:'Syne',sans-serif;cursor:pointer">⬇ Export Excel</button>
+    </div>
+    <div class="full-table-wrap">
+      <table class="full-table" id="full-table">
+        <thead id="full-thead"></thead>
+        <tbody id="full-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+
+// ─── PASSWORD CONFIG — Change this to your own password! ─────────────────────
+const CORRECT_PASSWORD = 'Attendr@2026';  // ← CHANGE THIS TO YOUR OWN PASSWORD
+const MAX_ATTEMPTS     = 5;
+// ─────────────────────────────────────────────────────────────────────────────
+
+let failedAttempts = 0;
+
+function checkPassword() {
+  if (failedAttempts >= MAX_ATTEMPTS) {
+    document.getElementById('pw-error').textContent = '🔒 Too many attempts. Refresh the page to retry.';
+    document.getElementById('unlock-btn').disabled = true;
+    return;
+  }
+  var val = document.getElementById('pw-input').value;
+  if (val === CORRECT_PASSWORD) {
+    var screen = document.getElementById('password-screen');
+    screen.style.transition = 'opacity 0.5s ease';
+    screen.style.opacity = '0';
+    setTimeout(function() { screen.style.display = 'none'; }, 500);
+  } else {
+    failedAttempts++;
+    var inp = document.getElementById('pw-input');
+    inp.classList.add('error');
+    setTimeout(function() { inp.classList.remove('error'); }, 400);
+    inp.value = '';
+    inp.focus();
+    var left = MAX_ATTEMPTS - failedAttempts;
+    document.getElementById('pw-error').textContent = '✕ Wrong password. Try again.';
+    document.getElementById('pw-attempts').textContent =
+      left > 0
+        ? left + ' attempt' + (left !== 1 ? 's' : '') + ' remaining'
+        : '🔒 Locked — refresh the page to retry';
+    if (left === 0) { document.getElementById('unlock-btn').disabled = true; }
+  }
+}
+
+function togglePw() {
+  const inp = document.getElementById('pw-input');
+  inp.type = (inp.type === 'password') ? 'text' : 'password';
+  inp.focus();
+}
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let parsedData   = [];   // array of { name, team, days: [{date, dayName, status}] }
+let allWeeks     = [];   // array of week arrays [[dates...]]
+let currentWeek  = 0;
+let currentView  = 'week';
+let rawHeaders   = [];
+let fileName     = '';
+
+// ─── Boot — runs after page fully loads ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+
+  // ── Password screen setup ──
+  var screen    = document.getElementById('password-screen');
+  var pwInput   = document.getElementById('pw-input');
+  var unlockBtn = document.getElementById('unlock-btn');
+  var toggleBtn = document.getElementById('toggle-pw-btn');
+
+  // Always show password screen on load (works on file:/// and https://)
+  screen.style.display = 'flex';
+  setTimeout(function() { pwInput.focus(); }, 100);
+
+  unlockBtn.addEventListener('click', function() { checkPassword(); });
+  toggleBtn.addEventListener('click', function() { togglePw(); });
+  pwInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') checkPassword();
+  });
+
+  // ── Date header ──
+  document.getElementById('header-date').textContent =
+    new Date().toLocaleDateString('en-IN',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+// ─── Upload handling ──────────────────────────────────────────────────────────
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+function handleFile(file) {
+  if (!file) return;
+  fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = e => parseExcel(e.target.result);
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── Excel Parsing ────────────────────────────────────────────────────────────
+function parseExcel(buffer) {
+  const wb    = XLSX.read(buffer, { type: 'arraybuffer' });
+  const ws    = wb.Sheets[wb.SheetNames[0]];
+  const rows  = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  if (rows.length < 3) { alert('Could not read the file. Check format.'); return; }
+
+  // Find header row — look for row containing 'Employee' or 'employee'
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    if (rows[i].some(c => c.toString().toLowerCase().includes('employee'))) {
+      headerRowIdx = i; break;
+    }
+  }
+
+  const headers = rows[headerRowIdx].map(c => c.toString().trim());
+  rawHeaders    = headers;
+
+  // Find Employee and Team columns
+  const empCol  = headers.findIndex(h => h.toLowerCase().includes('employee'));
+  const teamCol = headers.findIndex(h => h.toLowerCase().includes('team'));
+
+  // Find date columns — they contain a date pattern (DD-Mon or similar) or day names
+  // Strategy: cols after team col that have a date-like header in row above or same row
+  // We'll look for columns that have "yes/wfh/leave" values in data rows
+  const dateCols = [];
+  for (let c = 0; c < headers.length; c++) {
+    if (c === empCol || c === teamCol) continue;
+    const h = headers[c];
+    // Check if header looks like a date (contains digits + month name or day name)
+    const isDate = /\d{1,2}[-\/]\w+/.test(h) || /jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(h) || /monday|tuesday|wednesday|thursday|friday/i.test(h);
+    // Also check sub-header row (headerRowIdx+1) if it has day names
+    const subH = rows[headerRowIdx+1] ? rows[headerRowIdx+1][c]?.toString() || '' : '';
+    const isDayName = /monday|tuesday|wednesday|thursday|friday|mon|tue|wed|thu|fri/i.test(subH);
+    if (isDate || isDayName) dateCols.push({ col: c, header: h, subHeader: subH });
+  }
+
+  // If no date cols found by header, find by value presence
+  if (dateCols.length === 0) {
+    for (let c = 2; c < headers.length; c++) {
+      let hasVal = false;
+      for (let r = headerRowIdx+2; r < rows.length; r++) {
+        const v = rows[r][c]?.toString().toLowerCase() || '';
+        if (['yes','wfh','leave'].includes(v)) { hasVal = true; break; }
+      }
+      if (hasVal) dateCols.push({ col: c, header: headers[c], subHeader: '' });
+    }
+  }
+
+  // Build date labels — combine header + subheader
+  const dateLabels = dateCols.map(dc => {
+    const combined = (dc.header + ' ' + dc.subHeader).trim();
+    return combined || `Day ${dc.col}`;
+  });
+
+  // Parse data rows
+  parsedData = [];
+  const dataStart = headerRowIdx + 2; // skip sub-header row
+  for (let r = dataStart; r < rows.length; r++) {
+    const row  = rows[r];
+    const name = row[empCol]?.toString().trim();
+    if (!name) continue;
+    const team = row[teamCol]?.toString().trim() || 'General';
+    const days = dateCols.map((dc, i) => {
+      const raw    = row[dc.col]?.toString().trim() || '';
+      const status = normaliseStatus(raw);
+      return { label: dateLabels[i], header: dc.header, subHeader: dc.subHeader, status };
+    });
+    parsedData.push({ name, team, days });
+  }
+
+  // Group into weeks (Mon-Fri groups based on sub-headers)
+  allWeeks = groupIntoWeeks(dateCols, dateLabels);
+
+  showDashboard();
+}
+
+function normaliseStatus(raw) {
+  const v = raw.toLowerCase();
+  if (!v || v === '' || v === '-') return '';
+  if (v === 'yes' || v === 'y' || v === 'present' || v === 'office') return 'YES';
+  if (v.includes('wfh') || v.includes('work from home') || v.includes('remote')) return 'WFH';
+  if (v.includes('leave') || v.includes('absent') || v === 'a') return 'LEAVE';
+  return v.toUpperCase();
+}
+
+function groupIntoWeeks(dateCols, dateLabels) {
+  // Group consecutive 5 columns as a week, or split by detecting Monday
+  const weeks = [];
+  let week = [];
+  dateCols.forEach((dc, i) => {
+    const sub = dc.subHeader.toLowerCase();
+    const hdr = dc.header.toLowerCase();
+    const isMon = /monday|^mon/.test(sub) || /monday/.test(hdr);
+    if (isMon && week.length > 0) { weeks.push(week); week = []; }
+    week.push({ ...dc, label: dateLabels[i], idx: i });
+  });
+  if (week.length > 0) weeks.push(week);
+  // If only 1 week group, chunk into 5s
+  if (weeks.length <= 1 && dateCols.length > 5) {
+    const flat = weeks[0] || dateCols.map((dc, i) => ({ ...dc, label: dateLabels[i], idx: i }));
+    const chunked = [];
+    for (let i = 0; i < flat.length; i += 5) chunked.push(flat.slice(i, i+5));
+    return chunked;
+  }
+  return weeks.length ? weeks : [dateCols.map((dc, i) => ({ ...dc, label: dateLabels[i], idx: i }))];
+}
+
+// ─── Show Dashboard ───────────────────────────────────────────────────────────
+function showDashboard() {
+  document.getElementById('upload-zone').classList.add('hidden');
+  const dash = document.getElementById('dashboard');
+  dash.classList.add('visible');
+
+  document.getElementById('file-badge').textContent = '📄 ' + fileName;
+  document.getElementById('file-badge').style.display = 'inline-block';
+
+  // Subtitle
+  const totalEmployees = parsedData.length;
+  const totalWeeks     = allWeeks.length;
+  document.getElementById('dash-subtitle').textContent =
+    `${totalEmployees} employees · ${totalWeeks} week${totalWeeks!==1?'s':''} of data · ${fileName}`;
+
+  // Build week tabs
+  const tabsEl = document.getElementById('week-tabs');
+  tabsEl.innerHTML = allWeeks.map((w, i) => {
+    const label = getWeekLabel(w);
+    return `<button class="week-tab ${i===0?'active':''}" onclick="selectWeek(${i})" id="wtab-${i}">${label}</button>`;
+  }).join('');
+
+  currentWeek = 0;
+  renderDashboard();
+}
+
+function getWeekLabel(week) {
+  if (!week || !week.length) return 'Week';
+  const first = week[0];
+  const last  = week[week.length-1];
+  // Try to extract date from header
+  const hf = first.header.replace(/\n/g,' ').trim().split(' ')[0];
+  const hl = last.header.replace(/\n/g,' ').trim().split(' ')[0];
+  if (hf && hl && hf !== hl) return `${hf} – ${hl}`;
+  return first.label.split('\n')[0] || 'Week';
+}
+
+function selectWeek(idx) {
+  currentWeek = idx;
+  document.querySelectorAll('.week-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  renderDashboard();
+}
+
+function switchView(v) {
+  currentView = v;
+  document.getElementById('btn-week').classList.toggle('active', v==='week');
+  document.getElementById('btn-month').classList.toggle('active', v==='month');
+  document.getElementById('week-selector').style.display = v==='week' ? 'flex' : 'none';
+  renderDashboard();
+}
+
+// ─── Main render ─────────────────────────────────────────────────────────────
+function renderDashboard() {
+  const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  const mandatoryDays = getMandatoryDays(week);
+
+  // Compute per-employee stats
+  const stats = parsedData.map(emp => computeStats(emp, week, mandatoryDays));
+
+  renderKPIs(stats, mandatoryDays);
+  renderPendingWFH(stats);
+  renderTeamBars(stats, mandatoryDays);
+  renderZeroDays(stats);
+  renderLeaveSummary(stats);
+  renderFullTable(week);
+}
+
+// Mandatory days = Monday + Tuesday columns
+function getMandatoryDays(week) {
+  const src = week || allWeeks.flatMap(w => w);
+  return src.filter(d => {
+    const sub = (d.subHeader || '').toLowerCase();
+    const hdr = (d.header || '').toLowerCase();
+    return /monday|tuesday|^mon|^tue/.test(sub) || /monday|tuesday/.test(hdr);
+  });
+}
+
+function computeStats(emp, week, mandatoryDays) {
+  const src = week || allWeeks.flatMap(w => w); // all days if month view
+
+  // For mandatory days: Mon & Tue
+  const mandatorySrc = week ? mandatoryDays : getMandatoryDays(null);
+
+  let officeCount = 0, wfhCount = 0, leaveCount = 0, blankCount = 0;
+  let mandatoryOffice = 0, mandatoryWFH = 0, mandatoryLeave = 0;
+  let wfhPending = 0;
+
+  src.forEach(d => {
+    const s = emp.days[d.idx]?.status || '';
+    if (s === 'YES') officeCount++;
+    else if (s === 'WFH') wfhCount++;
+    else if (s === 'LEAVE') leaveCount++;
+    else blankCount++;
+  });
+
+  // Mandatory day breakdown
+  mandatorySrc.forEach(d => {
+    if (d.idx >= emp.days.length) return;
+    const s = emp.days[d.idx]?.status || '';
+    if (s === 'YES') mandatoryOffice++;
+    else if (s === 'WFH') mandatoryWFH++;
+    else if (s === 'LEAVE') mandatoryLeave++;
+  });
+
+  // WFH coverage: each WFH on mandatory day needs 1 makeup office day on other days
+  // Coverage days = office days on non-mandatory days in same week
+  if (week) {
+    const nonMandatory = week.filter(d => !mandatoryDays.find(m => m.idx === d.idx));
+    const coverageDays = nonMandatory.filter(d => emp.days[d.idx]?.status === 'YES').length;
+    wfhPending = Math.max(0, mandatoryWFH - coverageDays);
+  }
+
+  const totalWorked = officeCount + wfhCount;
+  const officePct   = src.length > 0 ? Math.round((officeCount / Math.max(src.length - leaveCount, 1)) * 100) : 0;
+  const mandatoryPct = mandatorySrc.length > 0
+    ? Math.round((mandatoryOffice / Math.max(mandatorySrc.length - mandatoryLeave, 1)) * 100) : 0;
+
+  return {
+    name: emp.name, team: emp.team,
+    officeCount, wfhCount, leaveCount, blankCount,
+    mandatoryOffice, mandatoryWFH, mandatoryLeave, wfhPending,
+    officePct, mandatoryPct, totalDays: src.length,
+    mandatoryTotal: mandatorySrc.length,
+  };
+}
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function renderKPIs(stats, mandatoryDays) {
+  const totalEmp     = stats.length;
+  const totalOffice  = stats.reduce((s,e) => s+e.officeCount, 0);
+  const totalWFH     = stats.reduce((s,e) => s+e.wfhCount, 0);
+  const totalLeave   = stats.reduce((s,e) => s+e.leaveCount, 0);
+  const totalPending = stats.filter(e => e.wfhPending > 0).length;
+  const avgMandPct   = stats.length ? Math.round(stats.reduce((s,e)=>s+e.mandatoryPct,0)/stats.length) : 0;
+
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card green animate"><div class="kpi-val">${totalOffice}</div><div class="kpi-label">Office Days</div><div class="kpi-sub">across all employees</div></div>
+    <div class="kpi-card yellow animate"><div class="kpi-val">${totalWFH}</div><div class="kpi-label">WFH Days</div><div class="kpi-sub">total this period</div></div>
+    <div class="kpi-card blue animate"><div class="kpi-val">${totalLeave}</div><div class="kpi-label">Leave Days</div><div class="kpi-sub">total this period</div></div>
+    <div class="kpi-card red animate"><div class="kpi-val">${totalPending}</div><div class="kpi-label">Pending Coverage</div><div class="kpi-sub">employees with WFH debt</div></div>
+    <div class="kpi-card purple animate"><div class="kpi-val">${avgMandPct}%</div><div class="kpi-label">Mon/Tue Attendance</div><div class="kpi-sub">avg mandatory days</div></div>
+  `;
+}
+
+// ─── Pending WFH ─────────────────────────────────────────────────────────────
+function renderPendingWFH(stats) {
+  const pending = stats.filter(e => e.wfhPending > 0)
+    .sort((a,b) => b.wfhPending - a.wfhPending);
+  document.getElementById('pending-count').textContent = pending.length ? `(${pending.length})` : '';
+  const el = document.getElementById('pending-list');
+  if (!pending.length) {
+    el.innerHTML = '<div class="empty">✅ All employees have covered their WFH days!</div>'; return;
+  }
+  el.innerHTML = pending.map(e => `
+    <div class="alert-row yellow">
+      <div><div class="alert-name">${e.name}</div><div class="alert-team">${e.team} · ${e.mandatoryWFH} WFH on Mon/Tue</div></div>
+      <span class="alert-badge badge-yellow">⚠ ${e.wfhPending} day${e.wfhPending!==1?'s':''} pending</span>
+    </div>`).join('');
+}
+
+// ─── Team Bars ────────────────────────────────────────────────────────────────
+function renderTeamBars(stats) {
+  const teams = {};
+  stats.forEach(e => {
+    if (!teams[e.team]) teams[e.team] = { total:0, office:0 };
+    teams[e.team].total++;
+    teams[e.team].office += e.mandatoryOffice;
+  });
+  const el = document.getElementById('team-bars');
+  const entries = Object.entries(teams).sort((a,b) => {
+    const pa = a[1].total ? a[1].office/a[1].total : 0;
+    const pb = b[1].total ? b[1].office/b[1].total : 0;
+    return pb - pa;
+  });
+  if (!entries.length) { el.innerHTML = '<div class="empty">No team data</div>'; return; }
+  el.innerHTML = entries.map(([team, d]) => {
+    const pct = d.total ? Math.round((d.office / (d.total * (currentView==='week'?2:allWeeks.length*2))) * 100) : 0;
+    const safePct = Math.min(pct, 100);
+    return `<div class="team-bar-row">
+      <span class="team-bar-label" title="${team}">${team}</span>
+      <div class="team-bar-track"><div class="team-bar-fill" style="width:${safePct}%"></div></div>
+      <span class="team-bar-pct">${safePct}%</span>
+    </div>`;
+  }).join('');
+}
+
+// ─── Zero Office Days ─────────────────────────────────────────────────────────
+function renderZeroDays(stats) {
+  const zero = stats.filter(e => e.officeCount === 0 && e.leaveCount < e.totalDays);
+  document.getElementById('zero-count').textContent = zero.length ? `(${zero.length})` : '';
+  const el = document.getElementById('zero-list');
+  if (!zero.length) { el.innerHTML = '<div class="empty">✅ Everyone has at least one office day!</div>'; return; }
+  el.innerHTML = zero.map(e => `
+    <div class="alert-row red">
+      <div><div class="alert-name">${e.name}</div><div class="alert-team">${e.team} · WFH: ${e.wfhCount} · Leave: ${e.leaveCount}</div></div>
+      <span class="alert-badge badge-red">0 office days</span>
+    </div>`).join('');
+}
+
+// ─── Leave Summary ────────────────────────────────────────────────────────────
+function renderLeaveSummary(stats) {
+  const withLeave = stats.filter(e => e.leaveCount > 0)
+    .sort((a,b) => b.leaveCount - a.leaveCount);
+  document.getElementById('leave-sum-count').textContent = withLeave.length ? `(${withLeave.length})` : '';
+  const el = document.getElementById('leave-list');
+  if (!withLeave.length) { el.innerHTML = '<div class="empty">No leaves in this period.</div>'; return; }
+  el.innerHTML = withLeave.map(e => `
+    <div class="alert-row blue">
+      <div><div class="alert-name">${e.name}</div><div class="alert-team">${e.team}</div></div>
+      <span class="alert-badge badge-blue">${e.leaveCount} day${e.leaveCount!==1?'s':''} leave</span>
+    </div>`).join('');
+}
+
+// ─── Full Table ───────────────────────────────────────────────────────────────
+function renderFullTable(week) {
+  const cols  = week || allWeeks.flatMap(w => w);
+  const label = week ? getWeekLabel(week) : 'Full Month';
+  document.getElementById('table-week-label').textContent = label ? `— ${label}` : '';
+
+  const thead = document.getElementById('full-thead');
+  const tbody = document.getElementById('full-tbody');
+
+  thead.innerHTML = `<tr>
+    <th>Employee</th>
+    <th>Team</th>
+    ${cols.map(d => {
+      const lbl = (d.subHeader||d.header||'').replace(/\n/g,' ').trim();
+      const isMandatory = /monday|tuesday|^mon|^tue/i.test(lbl);
+      return `<th class="center" style="${isMandatory?'color:var(--accent2)':''}" title="${d.header}">${lbl||d.label}</th>`;
+    }).join('')}
+    <th class="center">Office</th>
+    <th class="center">WFH</th>
+    <th class="center">Leave</th>
+    <th class="center">Mon/Tue%</th>
+    ${week ? '<th class="center">WFH Pending</th>' : ''}
+  </tr>`;
+
+  const mandatoryDays = getMandatoryDays(week);
+  tbody.innerHTML = parsedData.map(emp => {
+    const s    = computeStats(emp, week, mandatoryDays);
+    const cells = cols.map(d => {
+      const status = emp.days[d.idx]?.status || '';
+      const isMand = mandatoryDays.find(m => m.idx === d.idx);
+      if (status==='YES')   return `<td class="cell-yes"${isMand?' style="background:#2eff9e08"':''}>✓</td>`;
+      if (status==='WFH')   return `<td class="cell-wfh"${isMand?' style="background:#ffd93d08"':''}>WFH</td>`;
+      if (status==='LEAVE') return `<td class="cell-leave">LV</td>`;
+      return `<td class="cell-blank">—</td>`;
+    }).join('');
+    const pendingCell = week
+      ? `<td class="${s.wfhPending>0?'cell-pending':'cell-ok'}">${s.wfhPending>0?s.wfhPending+'▲':'✓'}</td>`
+      : '';
+    return `<tr>
+      <td class="name-cell">${emp.name}</td>
+      <td class="team-cell">${emp.team}</td>
+      ${cells}
+      <td class="pct-cell" style="color:var(--green)">${s.officeCount}</td>
+      <td class="pct-cell" style="color:var(--yellow)">${s.wfhCount}</td>
+      <td class="pct-cell" style="color:var(--blue)">${s.leaveCount}</td>
+      <td class="pct-cell" style="color:${s.mandatoryPct>=100?'var(--green)':s.mandatoryPct>=50?'var(--yellow)':'var(--red)'}">${s.mandatoryPct}%</td>
+      ${pendingCell}
+    </tr>`;
+  }).join('');
+}
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+function exportCurrentView() {
+  const week = currentView==='week' ? allWeeks[currentWeek] : null;
+  const cols = week || allWeeks.flatMap(w=>w);
+  const mandatoryDays = getMandatoryDays(week);
+  const colLabels = cols.map(d=>(d.subHeader||d.header||d.label).replace(/\n/g,' ').trim());
+
+  const header = ['Employee','Team',...colLabels,'Office Days','WFH Days','Leave Days','Mon/Tue %', ...(week?['WFH Pending']:[] )];
+  const rows   = parsedData.map(emp => {
+    const s     = computeStats(emp, week, mandatoryDays);
+    const cells = cols.map(d => {
+      const st = emp.days[d.idx]?.status||'';
+      return st==='YES'?'Yes':st==='WFH'?'WFH':st==='LEAVE'?'Leave':'';
+    });
+    return [emp.name, emp.team, ...cells, s.officeCount, s.wfhCount, s.leaveCount, s.mandatoryPct+'%', ...(week?[s.wfhPending]:[] )];
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header,...rows]);
+  ws['!cols'] = [{wch:22},{wch:14},...cols.map(()=>({wch:10})),{wch:12},{wch:10},{wch:10},{wch:12},...(week?[{wch:14}]:[])];
+  XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
+  XLSX.writeFile(wb, `attendance_dashboard_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+
+// ─── Export: Pending WFH List ─────────────────────────────────────────────────
+function exportPendingWFH() {
+  const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  const mandatoryDays = getMandatoryDays(week);
+  const stats = parsedData.map(emp => computeStats(emp, week, mandatoryDays));
+  const pending = stats.filter(e => e.wfhPending > 0).sort((a,b) => b.wfhPending - a.wfhPending);
+
+  if (!pending.length) { alert('Great news! No pending WFH days for this period.'); return; }
+
+  const header = ['Employee', 'Team', 'WFH on Mon/Tue', 'Office Coverage Days', 'Pending Days to Complete', 'Status'];
+  const rows = pending.map(e => [
+    e.name,
+    e.team,
+    e.mandatoryWFH,
+    e.mandatoryWFH - e.wfhPending,
+    e.wfhPending,
+    e.wfhPending > 0 ? 'ACTION REQUIRED' : 'Covered'
+  ]);
+
+  // Summary row
+  rows.push([]);
+  rows.push(['SUMMARY', '', '', '', '', '']);
+  rows.push(['Total employees with pending WFH', pending.length, '', '', '', '']);
+  rows.push(['Total pending days across team', pending.reduce((s,e) => s + e.wfhPending, 0), '', '', '', '']);
+  rows.push(['Report generated', new Date().toLocaleDateString('en-IN'), '', '', '', '']);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{wch:22},{wch:16},{wch:18},{wch:22},{wch:24},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Pending WFH');
+  XLSX.writeFile(wb, `pending_wfh_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ─── Export: Monday/Tuesday Leave Report ──────────────────────────────────────
+function exportMondayTuesdayLeaves() {
+  const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  const allCols = week || allWeeks.flatMap(w => w);
+
+  // Get only Mon/Tue columns
+  const monTueCols = allCols.filter(d => {
+    const sub = (d.subHeader || '').toLowerCase();
+    const hdr = (d.header || '').toLowerCase();
+    return /monday|tuesday|^mon|^tue/.test(sub) || /monday|tuesday/.test(hdr);
+  });
+
+  if (!monTueCols.length) { alert('Could not detect Monday/Tuesday columns.'); return; }
+
+  const header = ['Employee', 'Team', ...monTueCols.map(d => (d.subHeader || d.header || d.label).replace(/
+/g,' ').trim()), 'Total Mon/Tue Leaves', 'Total Mon/Tue WFH', 'Total Mon/Tue Office'];
+  const rows = parsedData.map(emp => {
+    let leaves = 0, wfh = 0, office = 0;
+    const cells = monTueCols.map(d => {
+      const s = emp.days[d.idx]?.status || '';
+      if (s === 'LEAVE') { leaves++; return 'Leave'; }
+      if (s === 'WFH')   { wfh++;    return 'WFH'; }
+      if (s === 'YES')   { office++;  return 'Yes'; }
+      return '—';
+    });
+    return [emp.name, emp.team, ...cells, leaves, wfh, office];
+  }).sort((a,b) => b[header.length - 3] - a[header.length - 3]); // sort by most leaves
+
+  // Add totals row
+  rows.push([]);
+  const totalLeaves = rows.reduce((s,r) => s + (typeof r[header.length-3] === 'number' ? r[header.length-3] : 0), 0);
+  const totalWFH    = rows.reduce((s,r) => s + (typeof r[header.length-2] === 'number' ? r[header.length-2] : 0), 0);
+  rows.push(['TOTAL TEAM', '', ...monTueCols.map(() => ''), totalLeaves, totalWFH, '']);
+  rows.push(['Report generated', new Date().toLocaleDateString('en-IN')]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{wch:22},{wch:16},...monTueCols.map(()=>({wch:14})),{wch:20},{wch:18},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Mon-Tue Leaves');
+  XLSX.writeFile(wb, `mon_tue_leaves_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ─── Export: Full WFH Summary ─────────────────────────────────────────────────
+function exportWFHSummary() {
+  const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  const mandatoryDays = getMandatoryDays(week);
+  const stats = parsedData.map(emp => computeStats(emp, week, mandatoryDays));
+
+  const header = [
+    'Employee', 'Team',
+    'Total WFH Days', 'WFH on Mon/Tue (Mandatory)',
+    'WFH on Other Days', 'Office Coverage Days',
+    'Pending WFH Days', 'Mon/Tue Attendance %', 'Status'
+  ];
+
+  const rows = stats
+    .sort((a,b) => b.wfhPending - a.wfhPending)
+    .map(e => {
+      const otherWFH = e.wfhCount - e.mandatoryWFH;
+      const coverageDays = e.mandatoryWFH - e.wfhPending;
+      const status = e.wfhPending > 0 ? 'PENDING' : e.mandatoryWFH > 0 ? 'Covered' : 'No WFH';
+      return [
+        e.name, e.team,
+        e.wfhCount, e.mandatoryWFH,
+        otherWFH < 0 ? 0 : otherWFH,
+        coverageDays < 0 ? 0 : coverageDays,
+        e.wfhPending,
+        e.mandatoryPct + '%',
+        status
+      ];
+    });
+
+  // Summary
+  rows.push([]);
+  rows.push(['--- SUMMARY ---']);
+  rows.push(['Total employees', parsedData.length]);
+  rows.push(['Employees with WFH', stats.filter(e => e.wfhCount > 0).length]);
+  rows.push(['Employees with pending days', stats.filter(e => e.wfhPending > 0).length]);
+  rows.push(['Total pending days (team)', stats.reduce((s,e) => s + e.wfhPending, 0)]);
+  rows.push(['Report generated', new Date().toLocaleDateString('en-IN')]);
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+  ws['!cols'] = [{wch:22},{wch:16},{wch:16},{wch:26},{wch:20},{wch:22},{wch:18},{wch:20},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws, 'WFH Summary');
+  XLSX.writeFile(wb, `wfh_summary_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ─── Re-upload ────────────────────────────────────────────────────────────────
+function reupload() {
+  document.getElementById('dashboard').classList.remove('visible');
+  document.getElementById('upload-zone').classList.remove('hidden');
+  document.getElementById('file-badge').style.display = 'none';
+  fileInput.value = '';
+}
+}); // end DOMContentLoaded
+</script>
+</body>
+</html>
