@@ -43,7 +43,7 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
 .lock-card{background:var(--bg2);border:1px solid var(--border2);border-radius:24px;padding:52px 48px;max-width:420px;width:100%;text-align:center;position:relative;overflow:hidden}
 .lock-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#7c6aff14,transparent 65%);pointer-events:none}
 .lock-icon{font-size:48px;margin-bottom:20px;display:block;filter:drop-shadow(0 0 24px #7c6aff55)}
-.lock-title{font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.lock-title{font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .lock-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
 .lock-input-wrap{position:relative;margin-bottom:14px}
 .lock-input{width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:12px;padding:13px 48px 13px 16px;font-size:14px;font-family:'Space Mono',monospace;letter-spacing:.1em;transition:border-color .2s}
@@ -64,7 +64,7 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
 .upload-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,#7c6aff11,transparent 70%);pointer-events:none}
 .upload-card:hover,.upload-card.drag-over{border-color:var(--accent);background:#0e0e20;transform:translateY(-4px);box-shadow:0 20px 60px #7c6aff22}
 .upload-icon{font-size:56px;margin-bottom:24px;display:block;filter:drop-shadow(0 0 20px #7c6aff44)}
-.upload-title{font-size:24px;font-weight:800;margin-bottom:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.upload-title{font-size:24px;font-weight:800;margin-bottom:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .upload-sub{font-size:13px;color:var(--muted);line-height:1.7;margin-bottom:28px}
 .upload-btn{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;border-radius:12px;padding:12px 32px;font-size:14px;font-family:'Syne',sans-serif;font-weight:700;cursor:pointer;letter-spacing:.05em;transition:opacity .2s}
 .upload-btn:hover{opacity:.85}
@@ -345,7 +345,7 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
 <script>
 
 // ─── PASSWORD CONFIG — Change this to your own password! ─────────────────────
-const CORRECT_PASSWORD = 'Amit@2026';  // ← CHANGE THIS TO YOUR OWN PASSWORD
+const CORRECT_PASSWORD = 'Attendr@2026';  // ← CHANGE THIS TO YOUR OWN PASSWORD
 const MAX_ATTEMPTS     = 5;
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -882,8 +882,7 @@ function exportMondayTuesdayLeaves() {
 
   if (!monTueCols.length) { alert('Could not detect Monday/Tuesday columns.'); return; }
 
-  const header = ['Employee', 'Team', ...monTueCols.map(d => (d.subHeader || d.header || d.label).replace(/
-/g,' ').trim()), 'Total Mon/Tue Leaves', 'Total Mon/Tue WFH', 'Total Mon/Tue Office'];
+  const header = ['Employee', 'Team', ...monTueCols.map(d => (d.subHeader || d.header || d.label).replace(/\n/g,' ').trim()), 'Total Mon/Tue Leaves', 'Total Mon/Tue WFH', 'Total Mon/Tue Office'];
   const rows = parsedData.map(emp => {
     let leaves = 0, wfh = 0, office = 0;
     const cells = monTueCols.map(d => {
