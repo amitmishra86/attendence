@@ -251,9 +251,14 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
   </div>
 
   <!-- Week selector (week view) -->
-  <div id="week-selector" style="margin-bottom:20px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-    <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-right:4px">WEEK:</span>
-    <div id="week-tabs" class="week-tabs"></div>
+  <div id="week-selector" style="margin-bottom:20px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;white-space:nowrap">WEEK:</span>
+    <select id="week-dropdown" onchange="selectWeek(parseInt(this.value))"
+      style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:8px;
+             padding:7px 14px;font-size:12px;font-family:'Space Mono',monospace;cursor:pointer;min-width:220px">
+    </select>
+    <span id="week-badge" style="font-size:11px;background:#7c6aff22;color:var(--accent);border:1px solid #7c6aff44;
+          border-radius:20px;padding:3px 12px;font-family:'Space Mono',monospace"></span>
   </div>
 
   <!-- KPI Row -->
@@ -321,6 +326,10 @@ header{position:relative;z-index:10;border-bottom:1px solid var(--border2);paddi
         <button onclick="exportCurrentView()" class="qbtn qbtn-green">
           📋 Full Attendance Export
           <span>Complete week/month data as Excel</span>
+        </button>
+        <button onclick="generateHTMLReport()" class="qbtn" style="color:#ff6ab0;border-color:#ff6ab033;flex:1;min-width:200px" onmouseover="this.style.borderColor='#ff6ab0';this.style.background='#ff6ab00a'" onmouseout="this.style.borderColor='#ff6ab033';this.style.background='transparent'">
+          📄 Interactive HTML Report
+          <span>Leave + WFH pending — shareable report</span>
         </button>
       </div>
     </div>
@@ -561,14 +570,16 @@ function showDashboard() {
   document.getElementById('dash-subtitle').textContent =
     `${totalEmployees} employees · ${totalWeeks} week${totalWeeks!==1?'s':''} of data · ${fileName}`;
 
-  // Build week tabs
-  const tabsEl = document.getElementById('week-tabs');
-  tabsEl.innerHTML = allWeeks.map((w, i) => {
+  // Build week dropdown — auto-select latest (last) week
+  const dropdown = document.getElementById('week-dropdown');
+  dropdown.innerHTML = allWeeks.map((w, i) => {
     const label = getWeekLabel(w);
-    return `<button class="week-tab ${i===0?'active':''}" onclick="selectWeek(${i})" id="wtab-${i}">${label}</button>`;
+    const isLatest = (i === allWeeks.length - 1);
+    return `<option value="${i}" ${isLatest ? 'selected' : ''}>${isLatest ? '★ Latest — ' : ''}${label}</option>`;
   }).join('');
 
-  currentWeek = 0;
+  currentWeek = allWeeks.length - 1; // start on latest week
+  updateWeekBadge();
   renderDashboard();
 }
 
@@ -585,8 +596,19 @@ function getWeekLabel(week) {
 
 function selectWeek(idx) {
   currentWeek = idx;
-  document.querySelectorAll('.week-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  document.getElementById('week-dropdown').value = idx;
+  updateWeekBadge();
   renderDashboard();
+}
+
+function updateWeekBadge() {
+  const w = allWeeks[currentWeek];
+  const isLatest = currentWeek === allWeeks.length - 1;
+  const badge = document.getElementById('week-badge');
+  badge.textContent = isLatest ? '✓ Current Week' : 'Week ' + (currentWeek + 1) + ' of ' + allWeeks.length;
+  badge.style.color = isLatest ? 'var(--green)' : 'var(--muted)';
+  badge.style.borderColor = isLatest ? '#2eff9e44' : 'var(--border2)';
+  badge.style.background = isLatest ? '#2eff9e11' : 'transparent';
 }
 
 function switchView(v) {
@@ -811,9 +833,20 @@ function renderFullTable(week) {
 }
 
 // ─── Export ───────────────────────────────────────────────────────────────────
+function getFilledCols(cols) {
+  // Return only columns that have at least one non-empty value across all employees
+  return cols.filter(d =>
+    parsedData.some(emp => {
+      const s = emp.days[d.idx]?.status || '';
+      return s !== '';
+    })
+  );
+}
+
 function exportCurrentView() {
   const week = currentView==='week' ? allWeeks[currentWeek] : null;
-  const cols = week || allWeeks.flatMap(w=>w);
+  const allCols = week || allWeeks.flatMap(w=>w);
+  const cols = getFilledCols(allCols); // ← only filled columns
   const mandatoryDays = getMandatoryDays(week);
   const colLabels = cols.map(d=>(d.subHeader||d.header||d.label).replace(/\n/g,' ').trim());
 
@@ -838,6 +871,7 @@ function exportCurrentView() {
 // ─── Export: Pending WFH List ─────────────────────────────────────────────────
 function exportPendingWFH() {
   const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  // Use only current/latest week
   const mandatoryDays = getMandatoryDays(week);
   const stats = parsedData.map(emp => computeStats(emp, week, mandatoryDays));
   const pending = stats.filter(e => e.wfhPending > 0).sort((a,b) => b.wfhPending - a.wfhPending);
@@ -871,7 +905,7 @@ function exportPendingWFH() {
 // ─── Export: Monday/Tuesday Leave Report ──────────────────────────────────────
 function exportMondayTuesdayLeaves() {
   const week = currentView === 'week' ? allWeeks[currentWeek] : null;
-  const allCols = week || allWeeks.flatMap(w => w);
+  const allCols = getFilledCols(week || allWeeks.flatMap(w => w)); // only filled cols
 
   // Get only Mon/Tue columns
   const monTueCols = allCols.filter(d => {
@@ -953,6 +987,175 @@ function exportWFHSummary() {
   ws['!cols'] = [{wch:22},{wch:16},{wch:16},{wch:26},{wch:20},{wch:22},{wch:18},{wch:20},{wch:14}];
   XLSX.utils.book_append_sheet(wb, ws, 'WFH Summary');
   XLSX.writeFile(wb, `wfh_summary_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+// ─── Generate Interactive HTML Report ────────────────────────────────────────
+function generateHTMLReport() {
+  const week = currentView === 'week' ? allWeeks[currentWeek] : null;
+  const allCols = getFilledCols(week || allWeeks.flatMap(w => w));
+  const mandatoryDays = getMandatoryDays(week);
+  const monTueCols = allCols.filter(d => {
+    const sub = (d.subHeader || '').toLowerCase();
+    const hdr = (d.header || '').toLowerCase();
+    return /monday|tuesday|^mon|^tue/.test(sub) || /monday|tuesday/.test(hdr);
+  });
+
+  const stats = parsedData.map(emp => computeStats(emp, week, mandatoryDays));
+
+  // Filter: only employees with leave on Mon/Tue OR WFH pending
+  const monTueLeaveEmps = parsedData.filter((emp, i) => {
+    return monTueCols.some(d => emp.days[d.idx]?.status === 'LEAVE');
+  });
+  const wfhPendingEmps = stats.filter(s => s.wfhPending > 0);
+
+  // Combined unique list
+  const allFlaggedNames = new Set([...monTueLeaveEmps.map(e => e.name), ...wfhPendingEmps.map(e => e.name)]);
+  const flaggedEmps = parsedData.filter(e => allFlaggedNames.has(e.name));
+
+  const weekLabel = week ? getWeekLabel(week) : 'Full Month';
+  const reportDate = new Date().toLocaleDateString('en-IN', {day:'2-digit', month:'long', year:'numeric'});
+
+  // Build employee rows
+  const empRows = flaggedEmps.map(emp => {
+    const st = stats.find(s => s.name === emp.name) || {};
+    const hasMonTueLeave = monTueCols.some(d => emp.days[d.idx]?.status === 'LEAVE');
+    const monTueLeaveCount = monTueCols.filter(d => emp.days[d.idx]?.status === 'LEAVE').length;
+    const monTueWFHCount = monTueCols.filter(d => emp.days[d.idx]?.status === 'WFH').length;
+    const wfhPending = st.wfhPending || 0;
+
+    const tags = [];
+    if (hasMonTueLeave) tags.push(`<span class="tag tag-blue">${monTueLeaveCount} Leave on Mon/Tue</span>`);
+    if (wfhPending > 0) tags.push(`<span class="tag tag-yellow">${wfhPending} WFH day${wfhPending>1?'s':''} pending</span>`);
+    if (monTueWFHCount > 0) tags.push(`<span class="tag tag-purple">${monTueWFHCount} WFH on Mon/Tue</span>`);
+
+    // Day cells for Mon/Tue only
+    const dayCells = monTueCols.map(d => {
+      const s = emp.days[d.idx]?.status || '';
+      const lbl = (d.subHeader || d.header || '').replace(/\n/g,' ').trim().substring(0,10);
+      let cls = 'day-blank', val = '—';
+      if (s === 'YES')   { cls = 'day-yes';   val = '✓ Office'; }
+      if (s === 'WFH')   { cls = 'day-wfh';   val = 'WFH'; }
+      if (s === 'LEAVE') { cls = 'day-leave'; val = 'Leave'; }
+      return `<div class="day-cell ${cls}"><div class="day-label">${lbl}</div><div class="day-val">${val}</div></div>`;
+    }).join('');
+
+    return `
+    <div class="emp-card ${wfhPending > 0 ? 'card-warn' : 'card-info'}">
+      <div class="emp-card-top">
+        <div class="emp-avatar">${emp.name.charAt(0).toUpperCase()}</div>
+        <div class="emp-info">
+          <div class="emp-card-name">${emp.name}</div>
+          <div class="emp-card-team">${emp.team}</div>
+        </div>
+        <div class="emp-tags">${tags.join('')}</div>
+      </div>
+      <div class="emp-days">${dayCells}</div>
+      ${wfhPending > 0 ? `<div class="emp-action">⚡ Action Required: Must complete <strong>${wfhPending}</strong> pending office day${wfhPending>1?'s':''} to cover WFH</div>` : ''}
+    </div>`;
+  }).join('');
+
+  const totalLeaveOnMandatory = monTueLeaveEmps.length;
+  const totalWFHPending = wfhPendingEmps.length;
+  const totalPendingDays = wfhPendingEmps.reduce((s,e) => s + e.wfhPending, 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Attendance Report — ${weekLabel}</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#080810;color:#e8e8f5;font-family:'Syne',sans-serif;padding:32px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(#1e1e3a 1px,transparent 1px),linear-gradient(90deg,#1e1e3a 1px,transparent 1px);background-size:40px 40px;opacity:.2;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:900px;margin:0 auto}
+.report-header{text-align:center;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #1e1e3a}
+.report-logo{font-family:'Space Mono',monospace;font-size:14px;letter-spacing:.2em;color:#7c6aff;margin-bottom:12px}
+.report-title{font-size:32px;font-weight:800;background:linear-gradient(135deg,#7c6aff,#ff6ab0);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px}
+.report-meta{font-size:13px;color:#5a5a8a;font-family:'Space Mono',monospace}
+.summary-row{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:32px}
+.sum-card{background:#0e0e1c;border:1px solid #1e1e3a;border-radius:14px;padding:20px;text-align:center}
+.sum-val{font-family:'Space Mono',monospace;font-size:36px;font-weight:700;line-height:1}
+.sum-card.red .sum-val{color:#ff4f6a}.sum-card.yellow .sum-val{color:#ffd93d}.sum-card.blue .sum-val{color:#4fc3f7}
+.sum-card::after{content:'';display:block;height:2px;border-radius:2px;margin-top:14px}
+.sum-card.red::after{background:linear-gradient(90deg,#ff4f6a,transparent)}
+.sum-card.yellow::after{background:linear-gradient(90deg,#ffd93d,transparent)}
+.sum-card.blue::after{background:linear-gradient(90deg,#4fc3f7,transparent)}
+.sum-label{font-size:11px;color:#5a5a8a;letter-spacing:.1em;text-transform:uppercase;margin-top:8px}
+.section-title{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#5a5a8a;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid #1e1e3a}
+.emp-card{background:#0e0e1c;border:1px solid #1e1e3a;border-radius:14px;padding:20px;margin-bottom:14px;transition:transform .2s}
+.emp-card:hover{transform:translateX(4px)}
+.emp-card.card-warn{border-left:3px solid #ffd93d}
+.emp-card.card-info{border-left:3px solid #4fc3f7}
+.emp-card-top{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+.emp-avatar{width:40px;height:40px;border-radius:50%;background:#141428;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#7c6aff;flex-shrink:0}
+.emp-card-name{font-size:15px;font-weight:700;color:#e8e8f5}
+.emp-card-team{font-size:11px;color:#5a5a8a;margin-top:3px}
+.emp-tags{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.tag{font-size:11px;padding:4px 12px;border-radius:20px;font-family:'Space Mono',monospace;font-weight:400}
+.tag-blue{background:#4fc3f722;color:#4fc3f7;border:1px solid #4fc3f733}
+.tag-yellow{background:#ffd93d22;color:#ffd93d;border:1px solid #ffd93d33}
+.tag-purple{background:#7c6aff22;color:#7c6aff;border:1px solid #7c6aff33}
+.emp-days{display:flex;gap:10px;flex-wrap:wrap}
+.day-cell{background:#141428;border-radius:10px;padding:10px 14px;min-width:90px;text-align:center;border:1px solid #1e1e3a}
+.day-label{font-size:10px;color:#5a5a8a;font-family:'Space Mono',monospace;margin-bottom:6px}
+.day-val{font-size:13px;font-weight:700}
+.day-yes .day-val{color:#2eff9e}.day-wfh .day-val{color:#ffd93d}.day-leave .day-val{color:#4fc3f7}.day-blank .day-val{color:#2a2a50}
+.emp-action{margin-top:14px;background:#ffd93d11;border:1px solid #ffd93d33;border-radius:8px;padding:10px 14px;font-size:12px;color:#ffd93d}
+.empty-state{text-align:center;padding:60px;color:#5a5a8a;font-size:14px}
+.footer{text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #1e1e3a;font-size:11px;color:#2a2a50;font-family:'Space Mono',monospace}
+@media(max-width:600px){.summary-row{grid-template-columns:1fr}.emp-card-top{flex-direction:column;align-items:flex-start}.emp-tags{margin-left:0}}
+@media print{body{background:#fff;color:#000}body::before{display:none}.emp-card{border:1px solid #ddd;break-inside:avoid}.report-title{-webkit-text-fill-color:#333;background:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="report-header">
+    <div class="report-logo">ATTENDR · MANAGER REPORT</div>
+    <div class="report-title">Attendance Action Report</div>
+    <div class="report-meta">${weekLabel} &nbsp;·&nbsp; Generated on ${reportDate} &nbsp;·&nbsp; ${flaggedEmps.length} employee${flaggedEmps.length!==1?'s':''} flagged</div>
+  </div>
+
+  <div class="summary-row">
+    <div class="sum-card red">
+      <div class="sum-val">${totalWFHPending}</div>
+      <div class="sum-label">Pending WFH Coverage</div>
+    </div>
+    <div class="sum-card blue">
+      <div class="sum-val">${totalLeaveOnMandatory}</div>
+      <div class="sum-label">Leave on Mon/Tue</div>
+    </div>
+    <div class="sum-card yellow">
+      <div class="sum-val">${totalPendingDays}</div>
+      <div class="sum-label">Total Days to Cover</div>
+    </div>
+  </div>
+
+  <div class="section-title">Flagged Employees — ${flaggedEmps.length} requiring attention</div>
+
+  ${flaggedEmps.length === 0
+    ? '<div class="empty-state">🎉 No issues found! All employees are compliant this period.</div>'
+    : empRows
+  }
+
+  <div class="footer">
+    ATTENDR · Attendance Manager · Report generated ${reportDate}<br>
+    Only employees with Leave on Mon/Tue or pending WFH coverage are shown in this report.
+  </div>
+</div>
+</body>
+</html>`;
+
+  const blob = new Blob([html], {type: 'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (!win) {
+    // Fallback: download the file
+    const a = document.createElement('a');
+    a.href = url; a.download = `attendance_report_${new Date().toISOString().split('T')[0]}.html`;
+    a.click();
+  }
 }
 
 // ─── Re-upload ────────────────────────────────────────────────────────────────
